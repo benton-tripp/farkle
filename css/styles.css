@@ -35,6 +35,7 @@ p { margin: 10px 0; }
 .hint, .note { font-size: 14px; color: var(--muted); }
 .hint { margin: 10px 0; }
 .roll-slots, .face-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.roll-count { max-width: 440px; margin-top: 14px; }
 .roll-slots { margin: 16px 0 10px; }
 .roll-slot { height: 62px; border: 1px dashed var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); border-radius: 4px; background: var(--soft); }
 .roll-slot.selected { border: 1px solid var(--link); color: var(--text); font-size: 42px; }
@@ -44,7 +45,6 @@ p { margin: 10px 0; }
 .button { border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; min-height: 44px; background: #fff; color: var(--link); font-size: 14px; }
 .button.quiet { border-color: transparent; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.before-roll { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field>span { font-size: 14px; font-weight: 600; }
 .field input, .field select { width: 100%; min-height: 44px; padding: 8px; font-size: 16px; border: 1px solid #9daab5; border-radius: 4px; background: #fff; color: var(--text); }

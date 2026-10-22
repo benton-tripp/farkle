@@ -6,9 +6,9 @@ This is a calculator, not a scorekeeper. Choosing a displayed move doesn't updat
 
 ## Using the Calculator
 
-Enter every die from your latest roll, including dice that don't score. Enter the turn points you had set aside before that roll. Don't include the new roll's points or dice from earlier rolls. The calculator scores each legal selection and compares banking with continuing.
+Select the number of dice in your latest roll, then enter every face, including dice that don't score. Enter the turn points you had set aside before that roll. Don't include the new roll's points or dice from earlier rolls. The calculator scores each legal selection and compares banking with continuing once the full roll is entered. It does not recommend a move for a partial roll.
 
-Leave the dice empty to assess the next roll. Set the number of dice available, or select the hot-dice checkbox to use six. These controls are disabled while a roll is entered. Keeping every die in an entered roll automatically makes six dice available for the next roll.
+With no dice entered, the same number-of-dice setting controls how many dice you could roll next. To evaluate a turn after hot dice, select six. If a scoring choice uses every die in an entered roll, the calculator automatically makes six dice available for the following roll. You don't need a separate hot-dice setting. If you reduce the selected dice count below the number of entered faces, the entered roll is cleared.
 
 Banked game points are separate from turn points. The entry checkbox means you've already satisfied the minimum first bank at some earlier point in the game. It can remain checked even if a penalty has since reduced your banked score to zero.
 
@@ -28,7 +28,7 @@ The first-ranked choice remains the recommendation. Selecting another choice cha
 
 Singles score 100 for a 1 and 50 for a 5. Other faces score only in combinations. Every combination must come from one roll.
 
-| Setting | Doubling Sets | Linear Sets | PlayMonster Scoring |
+| Setting | Doubling sets | Linear sets | PlayMonster scoring |
 |---|---:|---:|---:|
 | Three 1s | 1,000 | 1,000 | 300 |
 | Other triplets | Face × 100 | Face × 100 | Face × 100 |
@@ -89,5 +89,5 @@ Optional browser checks are documented at the top of `tests/browser_test.py`. Th
 
 jQuery 3.7.1 slim is included in `vendor` with its license. MathJax 3.2.1 loads asynchronously from jsDelivr. The calculator works without MathJax, but equations then appear as LaTeX source. This is not a packaged offline app: loading an uncached page or MathJax resource needs network access.
 
-The application saves settings in local storage under `farkle-calculator-v2`. It doesn't send scores or dice to a server. MathJax's CDN receives ordinary resource requests, and the host may record ordinary site requests. There is no application analytics code. Old settings under `farkle-strategy-lab-v1` aren't migrated.
+The application saves settings in local storage under `farkle-calculator-v3`. Settings saved by the previous version (`farkle-calculator-v2`) are migrated on first load. The previous version did not associate the selected number of available dice with an entered roll, so migrated rolls use their actual number of entered faces. It doesn't send scores or dice to a server. MathJax's CDN receives ordinary resource requests, and the host may record ordinary site requests. There is no application analytics code. Old settings under `farkle-strategy-lab-v1` aren't migrated.
 

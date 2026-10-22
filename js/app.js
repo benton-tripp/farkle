@@ -6,7 +6,8 @@
   }
   const FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
   const RULE_KEYS = Object.keys(E.DEFAULT_RULES);
-  const STORAGE_KEY = 'farkle-calculator-v2';
+  const STORAGE_KEY = 'farkle-calculator-v3';
+  const OLD_STORAGE_KEY = 'farkle-calculator-v2';
   const points = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format;
   const expected = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format;
   const escape = value => String(value).replace(/[&<>"']/g, c => ({
@@ -46,7 +47,7 @@
     return E.validateInput({ rules: readRules(), turn: numeric('turnPoints'),
       banked: numeric('bankedPoints'), goal: numeric('gameGoal'),
       entered: checked('alreadyEntered'), objective: $('#objective').val(),
-      dice: app.dice, nextDice: numeric('availableDice'), hotReady: checked('hotReady') });
+      dice: app.dice, nextDice: numeric('availableDice'), hotReady: false });
   }
   function save(input) {
     try {
@@ -57,7 +58,8 @@
   function load() {
     applyRules(E.PRESETS.doubling);
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      const current = localStorage.getItem(STORAGE_KEY);
+      const saved = JSON.parse(current || localStorage.getItem(OLD_STORAGE_KEY) || 'null');
       if (!saved) return;
       const input = E.validateInput(saved.input);
       applyRules(input.rules);
@@ -65,8 +67,8 @@
       $('#turnPoints').val(input.turn);
       $('#bankedPoints').val(input.banked);
       $('#gameGoal').val(input.goal);
-      $('#availableDice').val(String(input.nextDice));
-      $('#hotReady').prop('checked', input.hotReady);
+      const count = current ? input.nextDice : input.dice.length || (input.hotReady ? 6 : input.nextDice);
+      $('#availableDice').val(String(count));
       $('#alreadyEntered').prop('checked', input.entered);
       $('#objective').val(input.objective);
       $('#preset').val(Object.hasOwn(E.PRESETS, saved.preset) ? saved.preset : 'custom');
@@ -75,13 +77,14 @@
     } catch (_) { /* Invalid saved settings are ignored rather than repaired silently. */ }
   }
   function drawDice() {
-    $('#rollSlots').html(Array.from({ length: 6 }, (_, i) => i < app.dice.length
+    const count = numeric('availableDice');
+    $('#rollSlots').html(Array.from({ length: count }, (_, i) => i < app.dice.length
       ? `<button type="button" class="roll-slot selected" data-index="${i}" aria-label="Remove die ${i + 1}, showing ${app.dice[i]}">${FACES[app.dice[i] - 1]}</button>`
       : '<span class="roll-slot" aria-hidden="true">+</span>').join(''));
-    $('.face-button').prop('disabled', app.dice.length === 6);
-    $('#rollCountLabel').text(app.dice.length ? `${diceWord(app.dice.length)} entered` : 'No dice entered');
-    $('#hotReady').prop('disabled', app.dice.length > 0);
-    $('#availableDice').prop('disabled', app.dice.length > 0 || checked('hotReady'));
+    $('.face-button').prop('disabled', app.dice.length >= count);
+    $('#rollCountLabel').text(!app.dice.length ? 'No dice entered'
+      : app.dice.length === count ? `${diceWord(count)} entered`
+        : `${app.dice.length} of ${count} dice entered`);
   }
   function preview() {
     const r = E.normalizeRules(readRules());
@@ -273,6 +276,13 @@
         const payload = readInput();
         preview();
         save(payload);
+        if (payload.dice.length && payload.dice.length < payload.nextDice) {
+          status('Incomplete roll');
+          $('#resultsPanel').attr('aria-busy', 'false');
+          const remaining = payload.nextDice - payload.dice.length;
+          $('#recommendation').text(`Enter ${remaining} more ${remaining === 1 ? 'die' : 'dice'} to analyze the roll.`);
+          return;
+        }
         if (!worker) throw Error('The calculation worker is unavailable. Serve this folder over HTTP or HTTPS and reload.');
         app.pending = { id, payload };
         dispatch();
@@ -319,7 +329,7 @@
     preview();
     startWorker();
     $('.face-button').on('click', function () {
-      if (app.dice.length < 6) {
+      if (app.dice.length < numeric('availableDice')) {
         app.dice.push(Number($(this).attr('data-face')));
         drawDice(); recompute();
       }
@@ -333,7 +343,11 @@
       else $('.face-button').first().trigger('focus');
     });
     $('#clearRoll').on('click', () => { app.dice = []; drawDice(); recompute(); });
-    $('#loadSample').on('click', () => { app.dice = [1, 5, 2, 3, 6, 6]; drawDice(); recompute(); });
+    $('#loadSample').on('click', () => {
+      $('#availableDice').val('6');
+      app.dice = [1, 5, 2, 3, 6, 6];
+      drawDice(); recompute();
+    });
     $('#moveList').on('click', '.move', function () {
       if (!app.response) return;
       app.moveIndex = Number($(this).attr('data-move'));
@@ -359,8 +373,15 @@
       recompute();
     });
     $('#alreadyEntered').on('change', () => { app.enteredTouched = true; recompute(); });
-    $('#hotReady').on('change', () => { drawDice(); recompute(); });
-    $('#availableDice,#turnPoints,#gameGoal,#objective,#previousFarkles').on('input change', recompute);
+    $('#availableDice').on('change', () => {
+      const count = numeric('availableDice');
+      const cleared = app.dice.length > count;
+      if (cleared) app.dice = [];
+      drawDice();
+      if (cleared) $('#rollCountLabel').text(`Roll cleared. Enter ${diceWord(count)}.`);
+      recompute();
+    });
+    $('#turnPoints,#gameGoal,#objective,#previousFarkles').on('input change', recompute);
     $('#mathjaxScript').on('error', () => $('#mathStatus').text('MathJax could not load. Calculations still work; equations are shown as LaTeX source.'));
     function finishMathLoad() {
       const ready = window.MathJax?.startup?.promise;

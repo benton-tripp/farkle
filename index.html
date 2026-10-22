@@ -33,7 +33,8 @@
         <div class="primary-col">
           <section class="panel" aria-labelledby="section-dice">
             <div class="section-head"><h2 id="section-dice">Current Roll</h2><button type="button" class="button quiet" id="clearRoll">Clear dice</button></div>
-            <p class="hint">Enter every die from the latest roll, including dice that don't score. Don't include dice set aside earlier. Select an entered die to remove it.</p>
+            <p class="hint">Choose how many dice you rolled. Tap one face for each die, including dice that don't score. The six buttons show face values, not six available dice. Don't include dice set aside earlier. Tap an entered die to remove it.</p>
+            <label class="field roll-count"><span>Dice rolled (or available for the next roll)</span><select id="availableDice"><option value="1">1 die</option><option value="2">2 dice</option><option value="3">3 dice</option><option value="4">4 dice</option><option value="5">5 dice</option><option value="6" selected>6 dice</option></select></label>
             <div id="rollSlots" class="roll-slots" role="group" aria-label="Entered dice"></div>
             <div class="face-grid" role="group" aria-label="Add a die">
               <button type="button" class="face-button" data-face="1" aria-label="Add die showing 1">⚀</button>
@@ -44,11 +45,7 @@
               <button type="button" class="face-button" data-face="6" aria-label="Add die showing 6">⚅</button>
             </div>
             <div class="button-row"><button type="button" class="button" id="loadSample">Example: 1, 5, 2, 3, 6, 6</button><span id="rollCountLabel" class="hint" aria-live="polite">No dice entered</span></div>
-            <div class="form-grid before-roll">
-              <label class="field"><span>Dice available before rolling</span><select id="availableDice"><option value="1">1 die</option><option value="2">2 dice</option><option value="3">3 dice</option><option value="4">4 dice</option><option value="5">5 dice</option><option value="6" selected>6 dice</option></select></label>
-              <label class="check-field"><input type="checkbox" id="hotReady"><span>Hot dice: all six are available</span></label>
-            </div>
-            <p class="hint">These two controls apply only when no roll is entered. Scoring every die in an entered roll makes six dice available automatically.</p>
+            <p class="hint" id="diceInputHelp">Leave the roll empty to compare banking with rolling the selected number of dice. After hot dice, choose six for the next roll. If all dice in an entered roll score, the calculator automatically uses six for the following roll.</p>
           </section>
           <section class="panel" aria-labelledby="section-state">
             <h2 id="section-state">Turn and Game Scores</h2>

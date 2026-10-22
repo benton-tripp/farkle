@@ -16,7 +16,7 @@ import re
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-KEY = 'farkle-calculator-v2'
+KEY = 'farkle-calculator-v3'
 
 
 def run(chromium, mathjax, screenshots=None):
@@ -38,7 +38,7 @@ def run(chromium, mathjax, screenshots=None):
         browser = p.chromium.launch(executable_path=chromium, args=['--no-sandbox'])
         errors = []
 
-        def make_page(saved=None, use_math=True, blocked_storage=False, blocked_worker=False):
+        def make_page(saved=None, use_math=True, blocked_storage=False, blocked_worker=False, legacy_saved=None):
             page = browser.new_page(viewport={'width': 1440, 'height': 1000})
             page.on('pageerror', lambda error: errors.append(str(error)))
             def serve(route):
@@ -66,12 +66,13 @@ def run(chromium, mathjax, screenshots=None):
                     }
                 };
             ''')
-            page.evaluate('''({source,saved,blockedStorage,blockedWorker,key}) => {
+            page.evaluate('''({source,saved,legacySaved,blockedStorage,blockedWorker,key}) => {
                 window.workerSource = source;
                 window.blockStorage = blockedStorage;
                 window.blockWorker = blockedWorker;
                 if (saved !== null) testStorage.set(key, saved);
-            }''', {'source': engine + '\n' + worker, 'saved': saved,
+                if (legacySaved !== null) testStorage.set('farkle-calculator-v2', legacySaved);
+            }''', {'source': engine + '\n' + worker, 'saved': saved, 'legacySaved': legacy_saved,
                    'blockedStorage': blocked_storage, 'blockedWorker': blocked_worker, 'key': KEY})
             page.add_script_tag(content=(ROOT / 'vendor/jquery-3.7.1.slim.min.js').read_text())
             page.add_script_tag(content=engine)
@@ -99,6 +100,7 @@ def run(chromium, mathjax, screenshots=None):
 
         def roll(page, dice):
             page.locator('#clearRoll').click()
+            change(page, {'availableDice': len(dice)})
             page.evaluate('''dice => dice.forEach(face => document.querySelector(`[data-face="${face}"]`).click())''', dice)
             ready(page)
 
@@ -116,8 +118,9 @@ def run(chromium, mathjax, screenshots=None):
         ready(page)
         check('Sample recommends keeping one and rolling five', page.locator('.result-action').inner_text() == 'Keep 1; roll 5 dice'
               and page.locator('.move').count() == 3)
-        check('Pre-roll controls are disabled for entered dice', page.locator('#hotReady').is_disabled()
-              and page.locator('#availableDice').is_disabled())
+        check('Dice count remains editable after entering faces', page.locator('#availableDice').is_enabled()
+              and page.locator('#rollSlots .roll-slot').count() == 6
+              and page.locator('#hotReady').count() == 0)
         page.locator('#mathDetails').evaluate('(el)=>el.open=true')
         rendered(page)
         check('The less-than branch survives HTML insertion', page.evaluate("Array.from(MathJax.startup.document.math).some(item=>item.math.includes('k<d'))"))
@@ -137,7 +140,49 @@ def run(chromium, mathjax, screenshots=None):
         page.set_viewport_size({'width': 1440, 'height': 1000})
         page.locator('#rollSlots .selected').last.click()
         check('Removing a die keeps keyboard focus on a remaining die', page.evaluate("document.activeElement.matches('#rollSlots .selected')"))
+        page.wait_for_function("document.querySelector('#status').textContent === 'Incomplete roll'")
+        check('A partial roll has no strategy recommendation',
+              page.locator('.result-action').count() == 0 and 'Enter 1 more die' in page.locator('#recommendation').inner_text())
+        page.locator('#clearRoll').click()
         ready(page)
+        change(page, {'availableDice': 3})
+        check('Selecting three dice displays exactly three roll slots',
+              page.locator('#rollSlots .roll-slot').count() == 3)
+        page.locator('[data-face="1"]').click()
+        page.wait_for_function("document.querySelector('#status').textContent === 'Incomplete roll'")
+        check('Entering one of three dice produces no move recommendation',
+              page.locator('#moveList .move').count() == 0
+              and page.locator('#rollCountLabel').inner_text() == '1 of 3 dice entered')
+        page.locator('[data-face="5"]').click()
+        page.wait_for_function("document.querySelector('#status').textContent === 'Incomplete roll'")
+        check('Two of three dice still cannot be analyzed',
+              page.locator('.result-action').count() == 0)
+        page.locator('[data-face="2"]').click()
+        ready(page)
+        check('Completing three dice produces results and prevents a fourth face',
+              page.locator('#rollCountLabel').inner_text() == '3 dice entered'
+              and page.locator('.face-button:not([disabled])').count() == 0
+              and page.locator('#recommendation .result-action').count() == 1)
+        change(page, {'availableDice': 2})
+        check('Reducing count below entered faces clears the roll',
+              page.locator('#rollSlots .roll-slot').count() == 2
+              and page.locator('#rollSlots .selected').count() == 0
+              and 'Roll cleared' in page.locator('#rollCountLabel').inner_text())
+        page.locator('[data-face="1"]').click()
+        page.locator('[data-face="5"]').click()
+        ready(page)
+        check('Two-dice roll is analyzed with two entered dice',
+              page.locator('#rollCountLabel').inner_text() == '2 dice entered'
+              and page.locator('#availableDice').input_value() == '2')
+        page.locator('#loadSample').click()
+        ready(page)
+        check('Example switches the count to six and enters six faces',
+              page.locator('#availableDice').input_value() == '6'
+              and page.locator('#rollSlots .selected').count() == 6)
+        roll(page, [1, 1, 1])
+        check('Hot dice from a three-dice roll reset the next roll to six',
+              'six dice available' in page.locator('#moveList').inner_text()
+              and '2.31%' in page.locator('#recommendation').inner_text())
         page.locator('#clearRoll').click()
         ready(page)
         change(page, {'turnPoints': 2000, 'alreadyEntered': True, 'availableDice': 1})
@@ -197,6 +242,14 @@ def run(chromium, mathjax, screenshots=None):
         check('Failed MathJax startup leaves the equations as readable source',
               restored.locator('#mathExplanation .formula').count() > 0
               and '\\[' in restored.locator('#mathExplanation').text_content())
+        saved_v2 = '{"input":{"rules":{},"dice":[1,5,2],"turn":100,"banked":0,"goal":10000,"entered":false,"objective":"ev","nextDice":6,"hotReady":false},"preset":"doubling"}'
+        legacy = make_page(use_math=False, legacy_saved=saved_v2)
+        check('Saved rolls from the previous version retain their observed dice count',
+              legacy.locator('#status').inner_text() == 'Ready'
+              and legacy.locator('#availableDice').input_value() == '3'
+              and legacy.locator('#rollSlots .selected').count() == 3)
+        check('Legacy saved state is upgraded to the new storage key',
+              legacy.evaluate('''key => testStorage.has(key)''', KEY))
         corrupt = make_page(saved='{invalid', use_math=False)
         check('Malformed saved settings fall back to defaults', corrupt.locator('#rollCountLabel').inner_text() == 'No dice entered')
         blocked = make_page(use_math=False, blocked_storage=True)
