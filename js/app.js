@@ -175,54 +175,62 @@
     let observed = '';
     if (result.observed) {
       const o = result.observed;
-      observed = `<p>The entered roll, ignoring order, had this probability before it was observed:</p>` +
+      observed = `<p>For your ${o.counts.reduce((sum, count) => sum + count, 0)}-die roll, c = (${o.counts.join(', ')}). The values count how many 1s, 2s, 3s, 4s, 5s, and 6s you entered, respectively. Before you rolled, that face-count combination had probability:</p>` +
         formula(String.raw`P(\mathbf c)=\frac{d!}{6^d\prod_{i=1}^6 c_i!}=\frac{${o.ways}}{${o.denominator}}`) +
         `<p>For the entered roll, the Farkle outcome is already known. It isn't a new random event.</p>`;
     }
-    const probabilities = block('Roll Probabilities', observed +
-      '<p>Each ordered roll is equally likely. The multinomial coefficient counts the orders represented by each face-count vector.</p>' +
+    const probabilities = block('Roll Probabilities',
+      '<p>Let <em>d</em> be the number of dice rolled, and let <em>c</em> = (c₁, …, c₆) be the face-count vector. Each cᵢ is the number of dice showing face i, so the six counts add up to d. <em>P</em> means probability; the factorials count the different orders with those same faces.</p>' +
+      observed +
+      '<p><em>F</em> means a Farkle: a roll with no legal scoring selection. The set 𝓕<sub>d</sub> contains all face-count vectors that Farkle with d dice. The sum adds the probabilities of those vectors. The denominator 6<sup>d</sup> counts all possible ordered rolls.</p>' +
       formula(String.raw`P(F\mid d)=\sum_{\mathbf c\in\mathcal F_d}\frac{d!}{6^d\prod_{i=1}^6 c_i!}`) +
       formula(String.raw`P(F\mid d=${n})=\frac{${odds.farkleWays}}{${odds.denominator}}\approx ${(100 * odds.farkle).toFixed(4)}\%`) +
       formula(String.raw`P(\text{all dice can score}\mid d=${n})=\frac{${odds.hotWays}}{${odds.denominator}}`) +
-      `<p>These are ${result.status === 'farkle' ? 'pre-roll probabilities for the number of dice entered' : 'probabilities for the next roll, should you choose to roll'}. They aren't the risk of banking.</p>`);
+      `<p>"All dice can score" means at least one legal scoring selection uses every die. These are ${result.status === 'farkle' ? 'pre-roll probabilities for the number of dice entered' : 'probabilities for the next roll, if you roll again'}. Neither represents the risk of banking.</p>`);
     const state = move ?? result.before;
     let current;
     if (result.status === 'farkle') {
       current = `<p>The turn ends. Your banked score changes by ${points(-result.penalty)} points; the ${points(result.turn)} unbanked points are lost.</p>` +
         formula(String.raw`P(F\mid\text{entered roll})=1`);
     } else {
-      current = move ? formula(String.raw`t'=t+s=${result.turn}+${move.score}=${move.total}`) +
+      current = move ?
+        '<p>Let <em>t</em> be the unbanked points before the current roll and <em>s</em> the points from the selected dice. The new turn total is <em>t′</em> = t + s. Let <em>d</em> be the number of dice rolled and <em>k</em> the number kept. The next roll has <em>d′</em> dice: six when all rolled dice score (hot dice), otherwise d − k.</p>' +
+        formula(String.raw`t'=t+s=${result.turn}+${move.score}=${move.total}`) +
         formula(String.raw`d'=\begin{cases}6,&k=d\\d-k,&k<d\end{cases}\qquad(d,k,d')=(${result.rollCount},${move.used},${n})`) +
-        `<p>Keep ${move.dice.join(', ')}. The scoring breakdown is ${escape(move.label)}. Here, k is the number of dice kept.</p>` :
+        `<p>Keep ${move.dice.join(', ')}. The scoring breakdown is ${escape(move.label)}.</p>` :
+        '<p>Here <em>d</em> is the number of dice available for the next roll and <em>t</em> is the current unbanked turn total.</p>' +
         formula(String.raw`(d,t)=(${n},${result.turn})`);
-      current += formula(String.raw`\operatorname{EV}(\text{bank})=${state.canBank ? state.total : String.raw`\text{not allowed}`}`) +
+      current += '<p>EV means expected net change in banked game points during this turn. Banking adds the unbanked total. Rolling also includes the chance of Farkling and any configured penalty; future decisions follow the selected strategy.</p>' +
+        formula(String.raw`\operatorname{EV}(\text{bank})=${state.canBank ? state.total : String.raw`\text{not allowed}`}`) +
         formula(String.raw`\operatorname{EV}(\text{roll, then follow policy})\approx ${state.rollEV.toFixed(4)}`) +
         `<p>Suggested action: ${state.action}. Expected score change: ${expected(state.ev)} points. Turn Farkle risk: ${escape(pct(state.farkleProb))}. Target probability: ${escape(pct(state.goalProb))}.</p>`;
     }
     const L = result.penalty;
+    const outcomeTerms = '<p>A possible outcome of rolling d dice is denoted by ω (omega), and P(ω) is its probability, counting all orders of those faces. The symbol A(ω) is the set of legal scoring selections for that outcome. Selection a scores s<sub>a</sub> points and leaves d<sub>a</sub> dice available next; the sum covers every possible roll ω.</p>';
     const recursion = result.objective === 'goal'
-      ? '<p>Let J be the probability of reaching the target this turn. The bank term is 1 if banking reaches the target, and 0 otherwise. An illegal bank action is excluded.</p>' +
+      ? '<p>Let <em>J(d,t)</em> be the greatest probability of ending this turn at the target game score <em>g</em> or higher. The already-banked score is <em>b</em>. The bank term B<sub>g</sub>(d,t) equals 1 if banking is legal and b + t reaches g, or 0 if a legal bank falls short. If banking is illegal, that action is excluded. G<sub>g</sub>(ω,t) is the probability of eventual target success after outcome ω; a Farkle makes it zero.</p>' +
         formula(String.raw`J(d,t)=\max\left\{B_g(d,t),\sum_{\omega}P(\omega)\,G_g(\omega,t)\right\}`) +
         formula(String.raw`G_g(\omega,t)=\begin{cases}0,&\omega\text{ is a Farkle}\\\max_{a\in A(\omega)}J(d_a,t+s_a),&\text{otherwise}\end{cases}`)
-      : '<p>Let V be the expected change in banked points under the best turn policy. The bank term equals t when banking is legal; otherwise that action is excluded.</p>' +
+      : `<p>Let <em>V(d,t)</em> be the maximum expected net increase in banked points with d dice available and t points unbanked. The bank term B(d,t) is t if banking is legal; an illegal bank is excluded. G(ω,t) is the net value following outcome ω. A Farkle makes it −L, where L is the applicable penalty to previously banked points (${points(L)} in this state).</p>` +
         formula(String.raw`V(d,t)=\max\left\{B(d,t),\sum_{\omega}P(\omega)\,G(\omega,t)\right\}`) +
         formula(String.raw`G(\omega,t)=\begin{cases}${-L},&\omega\text{ is a Farkle}\\\max_{a\in A(\omega)}V(d_a,t+s_a),&\text{otherwise}\end{cases}`);
-    const policy = block('Decision and Risk Recursions', recursion +
-      '<p>A(ω) is the set of legal scoring selections. Each selection adds s points and leaves d dice, or six after hot dice. After each future roll, the calculator chooses again under the same objective.</p>' +
+    const policy = block('Decision and Risk Recursions', outcomeTerms + recursion +
+      '<p>A policy, denoted π (pi), specifies when to bank or roll and which dice to keep after each future roll. R<sub>π</sub>(d,t) is the probability of Farkling before this turn ends when following that policy. On a future scoring outcome ω, a<sub>π</sub> is the selection prescribed by the policy; s<sub>aπ</sub> and d<sub>aπ</sub> are its points and next dice count. In the sum, ω ∉ F means that the outcome is not a Farkle.</p>' +
       formula(String.raw`R_\pi(d,t)=\begin{cases}0,&\pi\text{ banks}\\P(F\mid d)+\sum_{\omega\notin F}P(\omega)R_\pi(d_{a_\pi},t+s_{a_\pi}),&\pi\text{ rolls}\end{cases}`) +
-      '<p>The risk is evaluated for the recommended policy. It is not minimized independently of the selected objective.</p>');
+      '<p>Turn risk is calculated under the same policy as the recommendation, rather than minimized separately.</p>');
     const boundary = result.boundary;
     const tail = block('High Scores and Independence',
       `<p>The computed high-score boundary is ${points(boundary.threshold)} turn points. This is a calculation boundary, not a game limit or an instruction to bank illegally.</p>` +
-      '<p>Let A_d be the expected largest score from a single roll, with zero assigned to a Farkle. For sufficiently high t, the expected change from rolling is nonpositive:</p>' +
+      '<p>Let A<sub>d</sub> be the expected maximum immediate score from rolling d dice, counting Farkles as zero. P(F | d) is the chance of a Farkle with d dice. The threshold C is chosen so that, for any unbanked total t ≥ C, another roll cannot improve expected points when banking is allowed. The maximum is taken over dice counts 1 through 6:</p>' +
       formula(String.raw`C\geq\max_d\frac{A_d}{P(F\mid d)},\qquad A_d-P(F\mid d)t\leq0\quad(t\geq C)`) +
       (result.rules.forceHot ?
-        '<p>Where banking is forbidden after hot dice, the engine instead uses the derived six-dice continuation value:</p>' +
+        '<p>When the house rule requires rerolling after hot dice, banking at six available dice is illegal. V<sub>π</sub>(6,t) below is the expected net banked-point change under the optimal continuation policy π at this high-score boundary. The coefficients are its calculated slope and intercept:</p>' +
         formula(String.raw`V_\pi(6,t)=${boundary.slope.toFixed(8)}t+${boundary.intercept.toFixed(6)}`) :
         '<p>Where banking is allowed, high-score states bank. The target objective also requires that this boundary is at or above the points needed to reach the target.</p>') +
       '<p>The derivation, including the forced-hot boundary and its validity conditions, is in <a href="https://github.com/benton-tripp/farkle/blob/main/MATH.md" target="_blank" rel="noopener noreferrer">MATH.md</a>. Calculations use floating-point numbers, not simulation.</p>' +
+      '<p>F<sub>next</sub> means a Farkle on the next roll, and “past rolls” means outcomes already observed. With independent, fair dice, those earlier outcomes do not change the next-roll probability when the next dice count d is fixed:</p>' +
       formula(String.raw`P(F_{\rm next}\mid\text{past rolls},d)=P(F\mid d)`) +
-      '<p>Past rolls do not change fair-dice probabilities. A streak penalty can change the decision because it changes the cost of a Farkle.</p>');
+      '<p>A consecutive-Farkle penalty may still change the recommended move because it changes the cost of another Farkle.</p>');
     renderMath(probabilities + block('Selected Decision', current) + policy + tail);
   }
   function renderMath(markup) {

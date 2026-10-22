@@ -123,6 +123,19 @@ def run(chromium, mathjax, screenshots=None):
               and page.locator('#hotReady').count() == 0)
         page.locator('#mathDetails').evaluate('(el)=>el.open=true')
         rendered(page)
+        explanations = page.locator('#mathExplanation').inner_text()
+        check('Roll probability formulas define the face-count vector and Farkle set',
+              'Each cᵢ is the number of dice showing face i' in explanations
+              and 'The set 𝓕' in explanations
+              and 'c = (1, 1, 1, 0, 1, 2)' in explanations)
+        check('Selected dice formulas define points and dice-count variables',
+              'Let t be the unbanked points before the current roll' in explanations
+              and 'the number kept' in explanations)
+        check('Decision recursions define roll outcomes and continuation terms',
+              'ω (omega)' in explanations and 'A(ω) is the set of legal scoring selections' in explanations
+              and 'A policy, denoted π' in explanations)
+        check('High-score formulas define the boundary and independence terms',
+              'The threshold C is chosen' in explanations and 'Fnext means a Farkle' in explanations)
         check('The less-than branch survives HTML insertion', page.evaluate("Array.from(MathJax.startup.document.math).some(item=>item.math.includes('k<d'))"))
         page.locator('#advancedRules').evaluate('(el)=>el.open=true')
         for width in [320, 390, 620, 768, 900, 1024, 1440]:
@@ -204,9 +217,15 @@ def run(chromium, mathjax, screenshots=None):
         check('Target objective banks a sufficient legal score', page.locator('.result-action').inner_text() == 'Keep 1; bank 100 points'
               and '100%' in page.locator('#recommendation').inner_text())
         rendered(page)
+        check('Target-probability recursion defines J, B_g, and G_g',
+              'Let J(d,t) be the greatest probability' in page.locator('#mathExplanation').inner_text()
+              and 'The bank term B' in page.locator('#mathExplanation').inner_text()
+              and 'is the probability of eventual target success' in page.locator('#mathExplanation').inner_text())
         change(page, {'objective': 'ev', 'bankedPoints': 0, 'turnPoints': 100000, 'forceHot': True})
         check('Forced hot dice cannot bank at a high entered score', page.locator('.result-action').inner_text() == 'Keep 1; roll 6 dice')
         rendered(page)
+        check('Forced-hot boundary equation defines the continuation value',
+              'expected net banked-point change under the optimal continuation policy' in page.locator('#mathExplanation').inner_text())
         # Queue a different solution, then invalidate input while it is being computed.
         change(page, {'forceHot': False, 'turnPoints': 0})
         page.locator('#forceHot').evaluate("el=>{el.checked=true;el.dispatchEvent(new Event('change',{bubbles:true}));}")
