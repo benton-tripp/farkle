@@ -217,7 +217,7 @@
         '<p>Where banking is forbidden after hot dice, the engine instead uses the derived six-dice continuation value:</p>' +
         formula(String.raw`V_\pi(6,t)=${boundary.slope.toFixed(8)}t+${boundary.intercept.toFixed(6)}`) :
         '<p>Where banking is allowed, high-score states bank. The target objective also requires that this boundary is at or above the points needed to reach the target.</p>') +
-      '<p>The derivation, including the forced-hot boundary and its validity conditions, is in <a href="./MATH.md">MATH.md</a>. Calculations use floating-point numbers, not simulation.</p>' +
+      '<p>The derivation, including the forced-hot boundary and its validity conditions, is in <a href="https://github.com/benton-tripp/farkle/blob/main/MATH.md" target="_blank" rel="noopener noreferrer">MATH.md</a>. Calculations use floating-point numbers, not simulation.</p>' +
       formula(String.raw`P(F_{\rm next}\mid\text{past rolls},d)=P(F\mid d)`) +
       '<p>Past rolls do not change fair-dice probabilities. A streak penalty can change the decision because it changes the cost of a Farkle.</p>');
     renderMath(probabilities + block('Selected Decision', current) + policy + tail);
