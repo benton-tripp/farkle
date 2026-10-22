@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compare Farkle scoring choices, roll probabilities, and expected points under configurable rules.">
+  <title>Farkle Calculator</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./css/styles.css">
+  <script>
+    window.MathJax = {
+      tex: {inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']]},
+      startup: {typeset: false},
+      options: {skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']}
+    };
+  </script>
+  <script defer src="./vendor/jquery-3.7.1.slim.min.js"></script>
+  <script defer src="./js/engine.js"></script>
+  <script defer src="./js/app.js"></script>
+  <script id="mathjaxScript" async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.1/es5/tex-chtml.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to calculator</a>
+  <div class="app-shell">
+    <header>
+      <h1>Farkle Calculator</h1>
+      <p>Enter a roll to compare scoring choices, or leave the dice empty to compare banking with rolling.</p>
+      <nav aria-label="Page sections"><a href="#section-rules">Scoring Rules</a><a href="#section-math">Calculations</a><a href="./README.md">Documentation</a></nav>
+    </header>
+    <noscript><p class="error-note">This calculator needs JavaScript. No calculation runs without it.</p></noscript>
+    <main id="main">
+      <div class="layout">
+        <div class="primary-col">
+          <section class="panel" aria-labelledby="section-dice">
+            <div class="section-head"><h2 id="section-dice">Current Roll</h2><button type="button" class="button quiet" id="clearRoll">Clear dice</button></div>
+            <p class="hint">Enter every die from the latest roll, including dice that don't score. Don't include dice set aside earlier. Select an entered die to remove it.</p>
+            <div id="rollSlots" class="roll-slots" role="group" aria-label="Entered dice"></div>
+            <div class="face-grid" role="group" aria-label="Add a die">
+              <button type="button" class="face-button" data-face="1" aria-label="Add die showing 1">⚀</button>
+              <button type="button" class="face-button" data-face="2" aria-label="Add die showing 2">⚁</button>
+              <button type="button" class="face-button" data-face="3" aria-label="Add die showing 3">⚂</button>
+              <button type="button" class="face-button" data-face="4" aria-label="Add die showing 4">⚃</button>
+              <button type="button" class="face-button" data-face="5" aria-label="Add die showing 5">⚄</button>
+              <button type="button" class="face-button" data-face="6" aria-label="Add die showing 6">⚅</button>
+            </div>
+            <div class="button-row"><button type="button" class="button" id="loadSample">Example: 1, 5, 2, 3, 6, 6</button><span id="rollCountLabel" class="hint" aria-live="polite">No dice entered</span></div>
+            <div class="form-grid before-roll">
+              <label class="field"><span>Dice available before rolling</span><select id="availableDice"><option value="1">1 die</option><option value="2">2 dice</option><option value="3">3 dice</option><option value="4">4 dice</option><option value="5">5 dice</option><option value="6" selected>6 dice</option></select></label>
+              <label class="check-field"><input type="checkbox" id="hotReady"><span>Hot dice: all six are available</span></label>
+            </div>
+            <p class="hint">These two controls apply only when no roll is entered. Scoring every die in an entered roll makes six dice available automatically.</p>
+          </section>
+          <section class="panel" aria-labelledby="section-state">
+            <h2 id="section-state">Turn and Game Scores</h2>
+            <div class="form-grid">
+              <label class="field"><span>Turn points before this roll</span><input id="turnPoints" type="number" inputmode="numeric" min="0" max="100000" step="50" value="0" required aria-describedby="turnHelp"></label>
+              <label class="field"><span>Banked game points</span><input id="bankedPoints" type="number" inputmode="numeric" min="0" max="100000" step="50" value="0" required></label>
+              <label class="field"><span>Target game score</span><input id="gameGoal" type="number" inputmode="numeric" min="50" max="100000" step="50" value="10000" required></label>
+              <label class="field"><span>Objective</span><select id="objective"><option value="ev">Maximize expected points</option><option value="goal">Reach the target this turn</option></select></label>
+              <label class="check-field"><input id="alreadyEntered" type="checkbox"><span>I've already met the entry requirement</span></label>
+              <label class="field"><span>Consecutive Farkles before this turn</span><select id="previousFarkles"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></label>
+            </div>
+            <p class="hint" id="turnHelp">Turn points are already set aside but not banked. Don't add points from the entered roll. With no roll entered, use your current turn total.</p>
+            <p class="hint">Previous Farkles affect the recommendation only when a streak penalty is enabled. The target objective concerns this turn, not the probability of winning the game.</p>
+          </section>
+          <section class="panel" aria-labelledby="section-recommendation" id="resultsPanel">
+            <div class="section-head"><h2 id="section-recommendation">Recommendation</h2><span id="status" class="status" role="status" aria-live="polite">Loading calculator...</span></div>
+            <div id="recommendation"></div>
+            <div id="moveList"></div>
+          </section>
+        </div>
+        <div class="secondary-col">
+          <section class="panel" aria-labelledby="section-rules">
+            <h2 id="section-rules">Scoring Rules</h2>
+            <label class="field"><span>Preset</span><select id="preset"><option value="doubling">Doubling sets</option><option value="linear">Linear sets</option><option value="fixed">PlayMonster scoring</option><option value="custom">Custom</option></select></label>
+            <div id="scorePreview" class="rule-preview"></div>
+            <details id="advancedRules"><summary>Change scoring and turn rules</summary><div class="advanced-content">
+              <label class="field"><span>Three 1s</span><select id="tripleOnes"><option value="1000">1,000 points</option><option value="300">300 points</option></select></label>
+              <label class="field"><span>Four, five, and six of a kind</span><select id="kindMode"><option value="doubling">Triple score ×2, ×4, ×8</option><option value="linear">Triple score ×2, ×3, ×4</option><option value="fixed">1,000, 2,000, 3,000 points</option><option value="none">No larger-set award</option></select></label>
+              <label class="field"><span>Straight (1 through 6)</span><select id="straight"><option value="1500">1,500</option><option value="1000">1,000</option><option value="3000">3,000</option><option value="0">Disabled</option></select></label>
+              <label class="field"><span>Three distinct pairs</span><select id="threePairs"><option value="1500">1,500</option><option value="750">750</option><option value="500">500</option><option value="1000">1,000</option><option value="0">Disabled</option></select></label>
+              <label class="field"><span>Two distinct triplets</span><select id="twoTriples"><option value="2500">2,500</option><option value="1500">1,500</option><option value="0">Score each triplet separately</option></select></label>
+              <label class="field"><span>Four of a kind plus a different pair</span><select id="fourPlusPair"><option value="1500">1,500</option><option value="0">No combined award</option></select></label>
+              <label class="field"><span>Minimum first bank</span><select id="minEntry"><option value="0">No minimum</option><option value="350">350</option><option value="500">500</option><option value="1000">1,000</option></select></label>
+              <label class="check-field"><input type="checkbox" id="forceHot"><span>Require another roll after hot dice</span></label>
+              <label class="field"><span>Penalty on the third consecutive Farkle</span><select id="streakPenalty"><option value="0">None</option><option value="500">500 banked points</option><option value="1000">1,000 banked points</option></select></label>
+            </div></details>
+            <p class="hint">A die can score only once. The calculator uses the highest total from nonoverlapping combinations and allows you to leave scoring dice unselected. A streak penalty cannot reduce banked points below zero.</p>
+            <p class="hint">The first two presets are house-rule combinations, not universal rules. Check the settings against your table's rules.</p>
+          </section>
+          <section class="panel" aria-labelledby="section-odds">
+            <h2 id="section-odds">Single-Roll Probabilities</h2>
+            <div class="table-scroll"><table class="odds-table"><caption>Fair dice, using the selected scoring rules</caption><thead><tr><th scope="col">Dice</th><th scope="col">Farkle</th><th scope="col">All Dice Score</th></tr></thead><tbody id="oddsRows"></tbody></table></div>
+            <p class="hint">“All dice score” means that a legal selection can use every die. Keeping all of them isn't necessarily the best move.</p>
+          </section>
+        </div>
+      </div>
+      <section class="panel math-panel" aria-labelledby="section-math">
+        <h2 id="section-math">Calculations</h2>
+        <p id="mathStatus" class="hint">Equations use MathJax. If it can't load, the LaTeX remains readable as source.</p>
+        <details id="mathDetails"><summary>Show the calculation for the selected move</summary><div id="mathExplanation"></div></details>
+        <details><summary>Assumptions and limits</summary><div class="method-body">
+          <p>The dice are fair and independent. Each combination must come from one roll. The model evaluates one player's current turn, without opponents, final-round rules, exact-score finishes, or piggybacking.</p>
+          <p>Roll probabilities come from exact outcome counts. Expected values and turn-level probabilities use dynamic programming with floating-point arithmetic. High-score states use a derived boundary that respects the selected rules, including forced hot-dice rerolls. There is no arbitrary instruction to bank at a score cap.</p>
+          <p>Moves are ranked by the selected objective. Near-equal floating-point results are treated as ties. For target-probability ties, expected points come next; remaining ties favor lower Farkle risk, then banking.</p>
+          <p>Three pairs require three different faces. A six-of-a-kind roll doesn't receive the two-distinct-triplets award, but it can be scored as two ordinary triplets. Custom rules that require a named combination to override a higher partition score aren't modeled.</p>
+          <p>Input scores must be multiples of 50, up to 100,000. The calculator doesn't track turns or update your score automatically. <a href="./MATH.md">Read the derivation and boundary proof</a>.</p>
+        </div></details>
+      </section>
+    </main>
+    <footer>
+      <p>Scores and settings are saved in this browser. Calculations stay on this device. MathJax loads from jsDelivr.</p>
+      <p>Rule references: <a href="https://www.playmonster.com/wp-content/uploads/2018/06/Farkle-Rules.pdf">PlayMonster</a>, <a href="https://info.lite.games/en/support/solutions/articles/60000688670-farkle-rules">LITE Games</a>, and <a href="https://farkle.games/official-rules/">Smart Box Games</a>.</p>
+    </footer>
+  </div>
+</body>
+</html>
