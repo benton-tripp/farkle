@@ -151,11 +151,25 @@ def run(chromium, mathjax, screenshots=None):
             page.set_viewport_size({'width': 390, 'height': 844})
             page.screenshot(path=str(screenshots / 'mobile.png'), full_page=True)
         page.set_viewport_size({'width': 1440, 'height': 1000})
+        page.locator('#mathDetails').evaluate('(el)=>el.open=true')
         page.locator('#rollSlots .selected').last.click()
         check('Removing a die keeps keyboard focus on a remaining die', page.evaluate("document.activeElement.matches('#rollSlots .selected')"))
         page.wait_for_function("document.querySelector('#status').textContent === 'Incomplete roll'")
         check('A partial roll has no strategy recommendation',
               page.locator('.result-action').count() == 0 and 'Enter 1 more die' in page.locator('#recommendation').inner_text())
+        page.wait_for_function("document.querySelector('#mathExplanation').textContent.includes('Incomplete Roll')")
+        check('Five of six entered dice show general calculations',
+              'Show General Calculations' in page.locator('#mathDetails > summary').inner_text()
+              and '5 of 6 dice entered' in page.locator('#mathExplanation').inner_text()
+              and 'These are pre-roll probabilities' in page.locator('#mathExplanation').inner_text()
+              and 'Selected Decision' not in page.locator('#mathExplanation').inner_text()
+              and page.locator('#mathExplanation .formula').count() >= 8)
+        rendered(page)
+        for width in [320, 390]:
+            page.set_viewport_size({'width': width, 'height': 844})
+            check(f'General formulas fit at {width} px',
+                  page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        page.set_viewport_size({'width': 1440, 'height': 1000})
         page.locator('#clearRoll').click()
         ready(page)
         change(page, {'availableDice': 3})
@@ -170,12 +184,28 @@ def run(chromium, mathjax, screenshots=None):
         page.wait_for_function("document.querySelector('#status').textContent === 'Incomplete roll'")
         check('Two of three dice still cannot be analyzed',
               page.locator('.result-action').count() == 0)
+        page.wait_for_function("document.querySelector('#mathExplanation').textContent.includes('2 of 3 dice entered')")
+        check('General equations use the current partial roll size',
+              '2 of 3 dice entered' in page.locator('#mathExplanation').inner_text()
+              and 'These counts are partial observations' in page.locator('#mathExplanation').inner_text())
+        page.locator('#objective').select_option('goal')
+        page.wait_for_function("document.querySelector('#mathExplanation').textContent.includes('Target Probability')")
+        check('Target objective shows its general probability equation',
+              'Target Probability' in page.locator('#mathExplanation').inner_text()
+              and 'Show General Calculations' in page.locator('#mathDetails > summary').inner_text()
+              and page.locator('.move').count() == 0)
+        page.locator('#objective').select_option('ev')
+        page.wait_for_function("document.querySelector('#mathExplanation').textContent.includes('Expected Points')")
         page.locator('[data-face="2"]').click()
         ready(page)
         check('Completing three dice produces results and prevents a fourth face',
               page.locator('#rollCountLabel').inner_text() == '3 dice entered'
               and page.locator('.face-button:not([disabled])').count() == 0
               and page.locator('#recommendation .result-action').count() == 1)
+        check('Completed rolls restore move-specific calculations',
+              'Show Calculation for Selected Move' in page.locator('#mathDetails > summary').inner_text()
+              and 'Selected Decision' in page.locator('#mathExplanation').inner_text()
+              and 'Incomplete Roll' not in page.locator('#mathExplanation').inner_text())
         change(page, {'availableDice': 2})
         check('Reducing count below entered faces clears the roll',
               page.locator('#rollSlots .roll-slot').count() == 2

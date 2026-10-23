@@ -170,6 +170,8 @@
   const formula = tex => `<div class="formula">\\[${escape(tex)}\\]</div>`;
   const block = (title, content) => `<section class="math-block"><h3>${title}</h3>${content}</section>`;
   function buildMath(result, move) {
+    $('#mathDetails > summary').text(move ? 'Show Calculation for Selected Move'
+      : result.status === 'farkle' ? 'Show Farkle Calculation' : 'Show Roll Calculations');
     const n = move?.nextDice ?? (result.status === 'farkle' ? result.rollCount : result.nextDice);
     const odds = result.odds[n - 1];
     let observed = '';
@@ -233,6 +235,37 @@
       '<p>A consecutive-Farkle penalty may still change the recommended move because it changes the cost of another Farkle.</p>');
     renderMath(probabilities + block('Selected Decision', current) + policy + tail);
   }
+
+  function buildGeneralMath(input) {
+    const d = input.nextDice;
+    const m = input.dice.length;
+    const missing = d - m;
+    const entered = E.countsFromDice(input.dice);
+    const prefix = block('Incomplete Roll',
+      `<p>${m} of ${d} dice entered. Enter the remaining ${missing} ${missing === 1 ? 'die' : 'dice'} to calculate scoring choices and the recommended move. These formulas describe the possible outcomes before a roll; they do not assign a score or strategy to an incomplete entry.</p>` +
+      '<p>Let <em>d</em> be the number of dice in a complete roll, <em>m</em> the number entered so far, and <em>r</em> the number not yet entered. Let <em>eᵢ</em> count the entered dice showing face <em>i</em>. These counts are partial observations, not a complete roll.</p>' +
+      formula(String.raw`\mathbf e=(${entered.join(',')}),\qquad \sum_{i=1}^{6}e_i=m=${m}`) +
+      formula(String.raw`r=d-m=${d}-${m}=${missing}`));
+    const combinations = block('Roll Probabilities',
+      '<p>For a complete roll of <em>d</em> fair, independent, six-sided dice, let <em>cᵢ</em> be the number showing face <em>i</em>, with the counts totaling d. The vector <em>c</em> contains all six face counts. The multinomial coefficient counts how many ordered rolls have those same counts.</p>' +
+      formula(String.raw`\sum_{i=1}^{6}c_i=d,\qquad P(\mathbf c\mid d)=\frac{d!}{6^d\prod_{i=1}^{6}c_i!}`) +
+      formula(String.raw`6^d=6^{${d}}=${6 ** d}`) +
+      '<p><em>F</em> denotes a Farkle. The set ℱ<sub>d</sub> includes every complete face-count vector with no legal scoring selection under the selected rules. The set ℋ<sub>d</sub> contains complete rolls for which at least one legal selection scores every die. These are pre-roll probabilities, not conditional probabilities of the unfinished entry.</p>' +
+      formula(String.raw`P(F\mid d)=\sum_{\mathbf c\in\mathcal F_d}\frac{d!}{6^d\prod_{i=1}^{6}c_i!}`) +
+      formula(String.raw`P(\text{all dice can score}\mid d)=\sum_{\mathbf c\in\mathcal H_d}\frac{d!}{6^d\prod_{i=1}^{6}c_i!}`));
+    const scoring = block('Scoring and Hot Dice',
+      '<p>After the complete roll is entered, each legal scoring selection <em>a</em> has score <em>sₐ</em> and keeps <em>kₐ</em> dice. Let <em>t</em> be unbanked points before this roll. The updated turn total is <em>t′</em>. The next roll uses <em>dₐ</em> dice. Keeping every available die restores six dice.</p>' +
+      formula(String.raw`t'=t+s_a,\qquad d_a=\begin{cases}6,&k_a=d\\d-k_a,&k_a<d\end{cases}`));
+    const decision = input.objective === 'goal'
+      ? block('Target Probability',
+        `<p>Let <em>J(d,t)</em> be the maximum probability of ending the turn at or above ${points(input.goal)} game points, given <em>d</em> dice available and <em>t</em> unbanked points. Let <em>b</em> be the previously banked score. <em>B<sub>g</sub>(d,t)</em> is 1 if banking is legal and b + t meets the target, 0 if a legal bank falls short, and unavailable if banking is forbidden. Each possible future roll is <em>ω</em>, with probability <em>P(ω)</em>; <em>G<sub>g</sub>(ω,t)</em> is the resulting target-success probability under the best legal continuation.</p>` +
+        formula(String.raw`J(d,t)=\max\left\{B_g(d,t),\sum_{\omega}P(\omega)\,G_g(\omega,t)\right\}`))
+      : block('Expected Points',
+        '<p>Let <em>V(d,t)</em> be the maximum expected net change in banked points, with <em>d</em> dice available and <em>t</em> unbanked points. <em>B(d,t)</em> equals t when banking is allowed and is otherwise excluded. A possible future roll is <em>ω</em> (omega), with probability <em>P(ω)</em>; <em>G(ω,t)</em> is the expected value after that roll, including the best legal continuation. If it Farkles, G equals −L, where L is the applicable penalty to banked points.</p>' +
+        formula(String.raw`V(d,t)=\max\left\{B(d,t),\sum_{\omega}P(\omega)\,G(\omega,t)\right\}`));
+    renderMath(prefix + combinations + scoring + decision);
+  }
+
   function renderMath(markup) {
     app.lastMath = markup;
     const version = ++app.mathVersion;
@@ -289,6 +322,8 @@
           $('#resultsPanel').attr('aria-busy', 'false');
           const remaining = payload.nextDice - payload.dice.length;
           $('#recommendation').text(`Enter ${remaining} more ${remaining === 1 ? 'die' : 'dice'} to analyze the roll.`);
+          $('#mathDetails > summary').text('Show General Calculations');
+          buildGeneralMath(payload);
           return;
         }
         if (!worker) throw Error('The calculation worker is unavailable. Serve this folder over HTTP or HTTPS and reload.');
